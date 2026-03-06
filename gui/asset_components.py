@@ -55,7 +55,7 @@ class AssetComponentsUtils:
                 choices=choices,
                 interactive=True,
                 label="Choose background video",
-                value=random.choice(choices)
+                value=random.choice(choices) if choices else []
             )
         return cls.instance_background_video_checkbox
 
@@ -67,7 +67,7 @@ class AssetComponentsUtils:
                 choices=choices,
                 interactive=True,
                 label="Choose background music",
-                value=random.choice(choices)
+                value=random.choice(choices) if choices else []
             )
         return cls.instance_background_music_checkbox
 

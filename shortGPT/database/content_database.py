@@ -1,3 +1,5 @@
+import datetime
+import re
 from uuid import uuid4
 from shortGPT.database.db_document import TINY_MONGO_DATABASE, TinyMongoDocument
 
@@ -17,12 +19,16 @@ class ContentDatabase:
         except:
             return None
 
-    def createContentDataManager(self, content_type: str) -> ContentDataManager:
+    def createContentDataManager(self, content_type: str, descriptive_name: str = None) -> ContentDataManager:
         try:
-            new_short_id = uuid4().hex[:24]
+            now = datetime.datetime.now()
+            date_str = now.strftime("%Y%m%d_%H%M%S")
+            if descriptive_name:
+                safe_name = re.sub(r'[^a-zA-Z0-9_]', '', descriptive_name.replace(' ', '_'))[:30]
+                new_short_id = f"{date_str}_{safe_name}"
+            else:
+                new_short_id = f"{date_str}_{uuid4().hex[:8]}"
             db_doc = TinyMongoDocument("content_db", "content_documents", new_short_id, True)
             return ContentDataManager(db_doc, content_type, True)
         except:
             return None
-    
-    

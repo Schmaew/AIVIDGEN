@@ -5,6 +5,7 @@ import time
 import yt_dlp
 
 from shortGPT.audio.audio_duration import get_asset_duration
+from shortGPT.config.path_utils import get_program_path
 
 CONST_CHARS_PER_SEC = 20.5  # Arrived to this result after whispering a ton of shorts and calculating the average number of characters per second of speech.
 
@@ -44,13 +45,14 @@ def downloadYoutubeAudio(url, outputFile):
 
 def speedUpAudio(tempAudioPath, outputFile, expected_duration=None):
     tempAudioPath, duration = get_asset_duration(tempAudioPath, False)
+    ffmpeg_path = get_program_path("ffmpeg") or "ffmpeg"
     if not expected_duration:
         if (duration > 57):
-            subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', tempAudioPath, '-af', f'atempo={(duration/57):.5f}', outputFile])
+            subprocess.run([ffmpeg_path, '-loglevel', 'error', '-i', tempAudioPath, '-af', f'atempo={(duration/57):.5f}', outputFile])
         else:
-            subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', tempAudioPath, outputFile])
+            subprocess.run([ffmpeg_path, '-loglevel', 'error', '-i', tempAudioPath, outputFile])
     else:
-        subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', tempAudioPath, '-af', f'atempo={(duration/expected_duration):.5f}', outputFile])
+        subprocess.run([ffmpeg_path, '-loglevel', 'error', '-i', tempAudioPath, '-af', f'atempo={(duration/expected_duration):.5f}', outputFile])
     if (os.path.exists(outputFile)):
         return outputFile
 

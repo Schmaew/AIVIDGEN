@@ -20,8 +20,8 @@ from shortGPT.gpt import gpt_editing, gpt_translate, gpt_yt
 class ContentShortEngine(AbstractContentEngine):
 
     def __init__(self, short_type: str, background_video_name: str, background_music_name: str, voiceModule: VoiceModule, short_id="",
-                 num_images=None, watermark=None, language: Language = Language.ENGLISH,):
-        super().__init__(short_id, short_type, language, voiceModule)
+                 num_images=None, watermark=None, language: Language = Language.ENGLISH, descriptive_name: str = None):
+        super().__init__(short_id, short_type, language, voiceModule, descriptive_name)
         if not short_id:
             if (num_images):
                 self._db_num_images = num_images
@@ -49,16 +49,36 @@ class ContentShortEngine(AbstractContentEngine):
     def _generateScript(self):
         self._db_script = ""
 
+    def _cleanScriptForTTS(self, script: str) -> str:
+        """Remove markdown formatting that TTS would read literally."""
+        # Remove bold/italic markers
+        script = re.sub(r'\*\*(.+?)\*\*', r'\1', script)  # **bold**
+        script = re.sub(r'\*(.+?)\*', r'\1', script)      # *italic*
+        script = re.sub(r'__(.+?)__', r'\1', script)      # __bold__
+        script = re.sub(r'_(.+?)_', r'\1', script)        # _italic_
+        # Remove headers
+        script = re.sub(r'^#+\s*', '', script, flags=re.MULTILINE)
+        # Remove bullet points
+        script = re.sub(r'^\s*[-*]\s+', '', script, flags=re.MULTILINE)
+        # Remove numbered lists
+        script = re.sub(r'^\s*\d+\.\s+', '', script, flags=re.MULTILINE)
+        # Remove code backticks
+        script = re.sub(r'`(.+?)`', r'\1', script)
+        # Remove extra whitespace
+        script = re.sub(r'\n{3,}', '\n\n', script)
+        return script.strip()
+
     def _generateTempAudio(self):
         if not self._db_script:
             raise NotImplementedError("generateScript method must set self._db_script.")
         if (self._db_temp_audio_path):
             return
         self.verifyParameters(text=self._db_script)
-        script = self._db_script
+        # Clean markdown formatting from script before TTS
+        script = self._cleanScriptForTTS(self._db_script)
         if (self._db_language != Language.ENGLISH.value):
             self._db_translated_script = gpt_translate.translateContent(script, self._db_language)
-            script = self._db_translated_script
+            script = self._cleanScriptForTTS(self._db_translated_script)
         self._db_temp_audio_path = self.voiceModule.generate_voice(
             script, self.dynamicAssetDir + "temp_audio_path.wav")
 
@@ -151,21 +171,25 @@ class ContentShortEngine(AbstractContentEngine):
             print("***** SCHEMA FOR RENDERING ****")
             videoEditor.renderVideo(outputPath, logger= self.logger if self.logger is not self.default_logger else None)
 
+        if not os.path.exists(outputPath):
+            raise Exception(f"Video rendering failed - output file not created: {outputPath}")
         self._db_video_path = outputPath
 
     def _addYoutubeMetadata(self):
-        if not os.path.exists('videos/'):
-            os.makedirs('videos')
+        videos_dir = os.path.abspath('videos')
+        if not os.path.exists(videos_dir):
+            os.makedirs(videos_dir)
         self._db_yt_title, self._db_yt_description = gpt_yt.generate_title_description_dict(self._db_script)
 
         now = datetime.datetime.now()
         date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
-        newFileName = f"videos/{date_str} - " + \
-            re.sub(r"[^a-zA-Z0-9 '\n\.]", '', self._db_yt_title)
+        safe_title = re.sub(r"[^a-zA-Z0-9 '\.]", '', self._db_yt_title).strip()
+        newFileName = os.path.join(videos_dir, f"{date_str} - {safe_title}")
 
         shutil.move(self._db_video_path, newFileName+".mp4")
         with open(newFileName+".txt", "w", encoding="utf-8") as f:
             f.write(
                 f"---Youtube title---\n{self._db_yt_title}\n---Youtube description---\n{self._db_yt_description}")
         self._db_video_path = newFileName+".mp4"
+        print(f"DEBUG: Final video saved to: {self._db_video_path}")
         self._db_ready_to_upload = True

@@ -9,7 +9,7 @@ class FactsShortEngine(ContentShortEngine):
     def __init__(self, voiceModule: VoiceModule, facts_type: str, background_video_name: str, background_music_name: str,short_id="",
                  num_images=None, watermark=None, language:Language = Language.ENGLISH):
         super().__init__(short_id=short_id, short_type="facts_shorts", background_video_name=background_video_name, background_music_name=background_music_name,
-                 num_images=num_images, watermark=watermark, language=language, voiceModule=voiceModule)
+                 num_images=num_images, watermark=watermark, language=language, voiceModule=voiceModule, descriptive_name=facts_type)
         
         self._db_facts_type = facts_type
 

@@ -37,52 +37,110 @@ class CoreEditingEngine:
         return output_file
 
     def generate_video(self, schema:Dict[str, Any], output_file, logger=None, force_duration=None, threads=None) -> None:
+        import os
+        
+        # Convert to absolute path to ensure file is written correctly
+        output_file = os.path.abspath(output_file)
+        output_dir = os.path.dirname(output_file)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        print(f"DEBUG: Output directory: {output_dir}")
+        print(f"DEBUG: Output file (absolute): {output_file}")
+        
         visual_assets = dict(sorted(schema['visual_assets'].items(), key=lambda item: item[1]['z']))
         audio_assets = dict(sorted(schema['audio_assets'].items(), key=lambda item: item[1]['z']))
         
         visual_clips = []
+        background_clip = None
+        
         for asset_key in visual_assets:
             asset = visual_assets[asset_key]
             asset_type = asset['type']
-            if asset_type == 'video':
-                clip = self.process_video_asset(asset)
-            elif asset_type == 'image':
-                # clip = self.process_image_asset(asset)
-                try:
+            try:
+                if asset_type == 'video':
+                    clip = self.process_video_asset(asset)
+                    if 'background' in asset_key:
+                        background_clip = clip
+                elif asset_type == 'image':
                     clip = self.process_image_asset(asset)
-                except Exception as e:
-                    print(f"Failed to load image {asset['parameters']['url']}. Error : {str(e)}")
-                    continue
-            elif asset_type == 'text':
-                clip = self.process_text_asset(asset)
-            else:
-                raise ValueError(f'Invalid asset type: {asset_type}')
-
-            visual_clips.append(clip)
+                elif asset_type == 'text':
+                    clip = self.process_text_asset(asset)
+                else:
+                    raise ValueError(f'Invalid asset type: {asset_type}')
+                visual_clips.append(clip)
+            except Exception as e:
+                print(f"WARNING: Failed to load {asset_type} asset '{asset_key}': {str(e)}")
+                continue
         
         audio_clips = []
-
         for asset_key in audio_assets:
             asset = audio_assets[asset_key]
             asset_type = asset['type']
-            if asset_type == "audio":
-                audio_clip = self.process_audio_asset(asset)
-            else:
-                raise ValueError(f"Invalid asset type: {asset_type}")
+            try:
+                if asset_type == "audio":
+                    audio_clip = self.process_audio_asset(asset)
+                    audio_clips.append(audio_clip)
+                else:
+                    raise ValueError(f"Invalid asset type: {asset_type}")
+            except Exception as e:
+                print(f"WARNING: Failed to load audio asset '{asset_key}': {str(e)}")
+                continue
 
-            audio_clips.append(audio_clip)
-        video = CompositeVideoClip(visual_clips)
-        if(audio_clips):
+        print(f"DEBUG: Loaded {len(visual_clips)} visual clips, {len(audio_clips)} audio clips")
+        
+        if not visual_clips:
+            raise Exception("No visual clips to render - all assets failed to load")
+        
+        # Force video size to 1080x1920 (vertical short format)
+        video = CompositeVideoClip(visual_clips, size=(1080, 1920))
+        audio = None
+        
+        if audio_clips:
             audio = CompositeAudioClip(audio_clips)
             video = video.with_audio(audio)
             video = video.with_duration(audio.duration)
         if force_duration:
             video = video.with_duration(force_duration)
-        if logger:
-            my_logger = MoviepyProgressLogger(callBackFunction=logger)
-            video.write_videofile(output_file, threads=threads,codec='libx264', audio_codec='aac', fps=25, preset='veryfast', logger=my_logger)
-        else:
-            video.write_videofile(output_file, threads=threads,codec='libx264', audio_codec='aac', fps=25, preset='veryfast')
+        
+        print(f"DEBUG: Video duration: {video.duration}s, size: {video.size}")
+        print(f"DEBUG: Writing video to: {output_file}")
+        
+        try:
+            video.write_videofile(
+                output_file, 
+                threads=threads or 4,
+                codec='libx264', 
+                audio_codec='aac', 
+                fps=25, 
+                preset='veryfast',
+                logger='bar',
+                temp_audiofile='temp-audio.m4a',
+                remove_temp=True
+            )
+            
+            if not os.path.exists(output_file):
+                raise Exception(f"Video file was not created at {output_file}")
+            
+            file_size = os.path.getsize(output_file)
+            print(f"DEBUG: Video created successfully! Size: {file_size / 1024 / 1024:.2f} MB")
+            
+        except Exception as e:
+            print(f"ERROR during video rendering: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
+        finally:
+            try:
+                video.close()
+                if audio:
+                    audio.close()
+                for clip in visual_clips:
+                    clip.close()
+                for clip in audio_clips:
+                    clip.close()
+            except:
+                pass
+        
         return output_file
     
     def generate_audio(self, schema:Dict[str, Any], output_file, logger=None) -> None:
@@ -164,6 +222,28 @@ class CoreEditingEngine:
                     clip = clip.with_effects([vfx.Resize((height*ar, height))])
                 else:
                     clip = clip.with_effects([vfx.Resize((width, width/ar))])
+                continue
+
+            if action['type'] == 'resize_and_center_crop':
+                target_w = action['param']['target_width']
+                target_h = action['param']['target_height']
+                target_ratio = target_w / target_h
+                
+                clip_w, clip_h = clip.size
+                clip_ratio = clip_w / clip_h
+                
+                if clip_ratio > target_ratio:
+                    new_h = target_h
+                    new_w = int(clip_ratio * target_h)
+                else:
+                    new_w = target_w
+                    new_h = int(target_w / clip_ratio)
+                
+                clip = clip.with_effects([vfx.Resize((new_w, new_h))])
+                
+                x_center = (new_w - target_w) // 2
+                y_center = (new_h - target_h) // 2
+                clip = clip.with_effects([vfx.Crop(x1=x_center, y1=y_center, x2=x_center + target_w, y2=y_center + target_h)])
                 continue
 
         return clip

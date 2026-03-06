@@ -16,6 +16,7 @@ from shortGPT.config.languages import (EDGE_TTS_VOICENAME_MAPPING,
                                        Language)
 from shortGPT.engine.facts_short_engine import FactsShortEngine
 from shortGPT.engine.reddit_short_engine import RedditShortEngine
+from shortGPT.api_utils.trending_api import get_trending_fact_topic
 class ShortAutomationUI(AbstractComponentUI):
     def __init__(self, shortGptUI: gr.Blocks):
         self.shortGptUI = shortGptUI
@@ -27,7 +28,7 @@ class ShortAutomationUI(AbstractComponentUI):
         with gr.Row(visible=False) as short_automation:
             with gr.Column():
                 numShorts = gr.Number(label="Number of shorts", minimum=1, value=1)
-                short_type = gr.Radio(["Reddit Story shorts", "Historical Facts shorts", "Scientific Facts shorts", "Custom Facts shorts"], label="Type of shorts generated", value="Reddit Story shorts", interactive=True)
+                short_type = gr.Radio(["🔥 Trending Facts shorts", "Reddit Story shorts", "Historical Facts shorts", "Scientific Facts shorts", "Custom Facts shorts"], label="Type of shorts generated", value="🔥 Trending Facts shorts", interactive=True)
                 facts_subject = gr.Textbox(label="Write a subject for your facts (example: Football facts)", interactive=True, visible=False)
                 short_type.change(lambda x: gr.update(visible=x == "Custom Facts shorts"), [short_type], [facts_subject])
                 tts_engine = gr.Radio([AssetComponentsUtils.ELEVEN_TTS, AssetComponentsUtils.EDGE_TTS], label="Text to speech engine", value=AssetComponentsUtils.EDGE_TTS, interactive=True)
@@ -105,8 +106,10 @@ class ShortAutomationUI(AbstractComponentUI):
                     self.progress_counter += 1
 
                 video_path = shortEngine.get_video_output_path()
+                # Convert Windows backslashes to forward slashes for URL
+                video_path_url = video_path.replace("\\", "/")
                 current_url = self.shortGptUI.share_url+"/" if self.shortGptUI.share else self.shortGptUI.local_url
-                file_url_path = f"{current_url}gradio_api/file={video_path}"
+                file_url_path = f"{current_url}gradio_api/file={video_path_url}"
                 file_name = video_path.split("/")[-1].split("\\")[-1]
                 self.embedHTML += f'''
                 <div style="display: flex; flex-direction: column; align-items: center;">
@@ -156,7 +159,11 @@ class ShortAutomationUI(AbstractComponentUI):
         if short_type == "Reddit Story shorts":
             return RedditShortEngine(voice_module, background_video_name=background_video, background_music_name=background_music, num_images=numImages, watermark=watermark, language=language)
         if "fact" in short_type.lower():
-            if "custom" in short_type.lower():
+            if "trending" in short_type.lower():
+                # Get a fresh trending topic for each video
+                facts_subject = get_trending_fact_topic()
+                print(f"🔥 Generating video about: {facts_subject}")
+            elif "custom" in short_type.lower():
                 facts_subject = facts_subject
             else:
                 facts_subject = short_type

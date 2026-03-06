@@ -1,4 +1,5 @@
 import gradio as gr
+import os
 
 from gui.content_automation_ui import GradioContentAutomationUI
 from gui.ui_abstract_base import AbstractBaseUI
@@ -31,10 +32,20 @@ class ShortGptUI(AbstractBaseUI):
         '''Launch the server'''
         shortGptUI = self.create_interface()
         if not getattr(self, 'colab', False):
-                    print("\n\n********************* STARTING SHORGPT **********************")
+                    print("\n\n********************* STARTING SHORTGPT **********************")
                     print("\nShortGPT is running here 👉 http://localhost:31415\n")
-                    print("********************* STARTING SHORGPT **********************\n\n")
-        shortGptUI.queue().launch(server_port=31415, height=1000, allowed_paths=["public/","videos/","fonts/"], share=self.colab, server_name="0.0.0.0")
+                    print("********************* STARTING SHORTGPT **********************\n\n")
+        # Use absolute paths for allowed_paths
+        allowed = [
+            os.path.abspath("public"),
+            os.path.abspath("videos"),
+            os.path.abspath("fonts"),
+            os.path.abspath(".editing_assets")
+        ]
+        # Detect if running in Docker (no TTY) and set share accordingly
+        import sys
+        in_docker = not sys.stdout.isatty()
+        shortGptUI.queue().launch(server_port=31415, height=1000, allowed_paths=allowed, share=in_docker, server_name="0.0.0.0")
 
 
 

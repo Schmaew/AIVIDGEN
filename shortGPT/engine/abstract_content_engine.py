@@ -10,13 +10,13 @@ CONTENT_DB = ContentDatabase()
 
 
 class AbstractContentEngine(ABC):
-    def __init__(self, short_id: str, content_type: str, language: Language, voiceModule: VoiceModule):
+    def __init__(self, short_id: str, content_type: str, language: Language, voiceModule: VoiceModule, descriptive_name: str = None):
         if short_id:
             self.dataManager = CONTENT_DB.getContentDataManager(
                 short_id, content_type
             )
         else:
-            self.dataManager = CONTENT_DB.createContentDataManager(content_type)
+            self.dataManager = CONTENT_DB.createContentDataManager(content_type, descriptive_name)
         self.id = str(self.dataManager._getId())
         self.initializeFFMPEG()
         self.prepareEditingPaths()

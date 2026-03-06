@@ -4,6 +4,7 @@ import subprocess
 import yt_dlp
 
 from shortGPT.editing_utils.handle_videos import getYoutubeVideoLink
+from shortGPT.config.path_utils import get_program_path
 
 
 def get_duration_yt_dlp(url):
@@ -24,8 +25,9 @@ def get_duration_yt_dlp(url):
 
 def get_duration_ffprobe(signed_url):
     try:
+        ffprobe_path = get_program_path("ffprobe") or "ffprobe"
         cmd = [
-            "ffprobe",
+            ffprobe_path,
             "-v",
             "quiet",
             "-print_format",

@@ -1,0 +1,19 @@
+# =============================================================================
+# AIVidGen/ShortGPT Docker Compose
+# Run with: docker-compose up
+# =============================================================================
+
+services:
+  shortgpt:
+    build: .
+    container_name: shortgpt
+    ports:
+      - "31415:31415"
+    env_file:
+      - .env
+    volumes:
+      # Persist generated videos on your computer
+      - ./videos:/app/videos
+      # Persist database
+      - ./data:/app/.database
+    restart: unless-stopped
