@@ -1,5 +1,5 @@
 python-dotenv
-gradio==5.9.0
+gradio==4.36.1
 openai==1.37.0
 httpx==0.27.2
 tiktoken
